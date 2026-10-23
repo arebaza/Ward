@@ -1,0 +1,15 @@
+# Prevent credentials and Church member data from being committed
+.streamlit/secrets.toml
+private/
+*.xlsx
+*.xls
+*.pdf
+*.csv
+.env
+.env.*
+# Python development files
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
