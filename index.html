@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive household map and directory — fictional-data pilot">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Park 5th Ward | Interactive Map Pilot</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='82'%3E%F0%9F%8F%A0%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="badge">FICTIONAL DATA · WEBSITE PILOT</div>
+      <div class="brandmark" aria-hidden="true">⌂</div>
+      <h1>Park 5th Ward</h1>
+      <p class="lead">Interactive Household Map</p>
+      <p class="muted">Enter the <strong>demo access code</strong> to explore the pilot interface.</p>
+      <form id="loginForm">
+        <label for="passcode">Demo access code</label>
+        <input id="passcode" type="password" autocomplete="off" spellcheck="false" required placeholder="Enter your code">
+        <p id="loginError" class="error" role="alert" aria-live="polite"></p>
+        <button type="submit" class="btn primary full">Open map pilot <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="notice"><strong>Demo only:</strong> this code is visible in website source. GitHub Pages cannot securely protect a real member directory. Do not publish private member data here.</p>
+    </div>
+  </div>
+
+  <div id="dashboard" class="dashboard hidden">
+    <header class="topbar">
+      <div class="topbrand"><span class="topicon" aria-hidden="true">⌂</span><div><span class="eyebrow">PARK 5TH WARD</span><strong>Family Map Pilot</strong></div></div>
+      <div class="top-actions"><span id="sourceBadge" class="source-badge">Demo families</span><button id="resetDemo" class="btn subtle" type="button">Reset demo</button></div>
+    </header>
+
+    <div class="privacy-banner" role="note"><span aria-hidden="true">ⓘ</span><span><strong>Public-site prototype.</strong> Published website contains fictional families only. Imported Excel stays in this browser session (not uploaded to GitHub), but third-party libraries/maps are used. Obtain approval before handling real records on any public website.</span></div>
+
+    <main class="page">
+      <section class="page-heading">
+        <div><span class="eyebrow">HOUSEHOLD DIRECTORY</span><h2>Find people. Find places.</h2><p>Choose a household to locate it, or click a map marker to see the people at that address.</p></div>
+        <button id="clearSelection" class="btn outline" type="button">Clear selection</button>
+      </section>
+
+      <section class="metrics" aria-label="Directory summary">
+        <div class="metric"><span>Members</span><strong id="memberCount">—</strong></div>
+        <div class="metric"><span>Household addresses</span><strong id="houseCount">—</strong></div>
+        <div class="metric"><span>Mapped homes</span><strong id="mappedCount">—</strong></div>
+        <div class="metric"><span>Need coordinates</span><strong id="missingCount">—</strong></div>
+      </section>
+
+      <section class="data-tools" aria-label="Directory data tools">
+        <div class="tool-copy"><strong>My local pilot data</strong><p>Choose your own Excel and optional coordinates CSV. Nothing is saved to this website or GitHub; reload resets the session.</p></div>
+        <div class="file-actions">
+          <label class="upload-btn"><span aria-hidden="true">↑</span> Load Excel <input id="memberFile" type="file" accept=".xlsx,.xls,.csv" aria-label="Load member Excel or CSV" hidden></label>
+          <label class="upload-btn secondary"><span aria-hidden="true">⌖</span> Load coordinates <input id="coordsFile" type="file" accept=".csv,.xlsx" aria-label="Load coordinates CSV or Excel" hidden></label>
+          <button id="downloadCoords" type="button" class="btn outline">↓ Download coordinates CSV</button>
+        </div>
+      </section>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <div class="workspace">
+        <section class="directory-panel" aria-labelledby="browseTitle">
+          <div class="panel-heading"><div><h3 id="browseTitle">Households</h3><p>Search names, members, or addresses</p></div><span id="visibleCount" class="small-number">0</span></div>
+          <label class="sr-only" for="search">Search households</label>
+          <input id="search" type="search" placeholder="⌕  Search a family or address…" autocomplete="off">
+          <label class="sr-only" for="mapFilter">Filter by map status</label>
+          <select id="mapFilter"><option value="all">All homes</option><option value="mapped">Mapped only</option><option value="unmapped">Coordinates needed</option></select>
+          <div id="householdList" class="house-list" aria-label="Household search results"></div>
+        </section>
+
+        <section class="map-panel" aria-labelledby="mapTitle">
+          <div class="panel-heading map-heading"><div><h3 id="mapTitle">Neighborhood map</h3><p id="mapSubhead">Click a marker to inspect a household</p></div><span class="map-legend"><i aria-hidden="true"></i> Home with coordinates</span></div>
+          <div id="map" aria-label="Interactive map of household locations"></div>
+          <p id="mapUnavailable" class="map-warning hidden">Map tiles could not load. Check your Internet connection. You can still search households and open directions.</p>
+          <div class="map-tip"><span aria-hidden="true">⌖</span><span>Have no coordinates? Select a household, enable <strong>Place by map click</strong>, then click its location and download the updated CSV.</span></div>
+        </section>
+
+        <aside class="detail-panel" aria-labelledby="detailsTitle">
+          <div class="panel-heading"><div><h3 id="detailsTitle">Household details</h3><p>Select a family or map marker</p></div></div>
+          <div id="emptyDetail" class="detail-empty"><div class="empty-icon" aria-hidden="true">⌂</div><strong>No household selected</strong><p>Choose a home from the list or click a marker on the map.</p></div>
+          <div id="selectedDetail" class="hidden">
+            <p class="eyebrow">SELECTED ADDRESS</p><h4 id="selectedLabel"></h4><p class="address" id="selectedAddress"></p>
+            <div id="coordState" class="detail-pill"></div>
+            <div class="detail-actions">
+              <button id="focusHome" type="button" class="btn primary">⌖ Locate home</button>
+              <a id="directions" class="btn outline" target="_blank" rel="noopener noreferrer">↗ Directions</a>
+            </div>
+            <div class="members-heading"><strong>People at this address</strong><span id="selectedCount"></span></div>
+            <div id="memberList" class="member-list"></div>
+            <details class="coords-editor"><summary>Map location · edit coordinates</summary>
+              <p>Coordinates are manually entered or placed on the map. Confirm the correct property/apartment before using.</p>
+              <form id="coordinateForm">
+                <div class="coords-inputs"><label>Latitude<input id="latitude" type="number" inputmode="decimal" min="-90" max="90" step="any" placeholder="40.2968"></label><label>Longitude<input id="longitude" type="number" inputmode="decimal" min="-180" max="180" step="any" placeholder="-111.6946"></label></div>
+                <button type="submit" class="btn outline full">Save coordinates in browser</button>
+              </form>
+              <label class="checkbox-line"><input id="placeOnMap" type="checkbox"> Place by map click (selected home)</label>
+              <p class="small-note">Changes last for this session. Use “Download coordinates CSV” to preserve them locally.</p>
+            </details>
+          </div>
+        </aside>
+      </div>
+      <footer><span>Park 5th Ward • HTML + CSS + JavaScript pilot</span><span>Demonstration is not an official Church system and is not a secure member directory.</span></footer>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,55 +1,95 @@
-# Park 5th Ward — Private Household Locator (Python / Streamlit)
+# Park 5th Ward — Interactive Family Map (GitHub Pages HTML Pilot)
 
-## What you get
-- **Two-way navigation:** select an address/family name and map centers there; click a pin and member detail panel switches to that address.
-- **Search:** member name, surname, address, apartment number; filter to mapped homes.
-- **Details:** directory fields (name, gender, age where provided, birth date, phone, email) shown in the private session.
-- **Directions:** Google Maps directions link to the selected address. Opens a third-party service only on click.
-- **Household coordinates template:** spreadsheet-compatible CSV with stable household IDs, addresses, and blank latitude/longitude.
-- **Privacy-first defaults:** public/no-auth app only displays fictional demo. Member data is not embedded in app code, and addresses are not geocoded automatically.
+A ready-to-use **HTML + CSS + JavaScript** website that runs on GitHub Pages. No Python, Streamlit, server or database is needed to demonstrate the interface.
 
-## Important privacy notice
-The original Excel contains private Church member information, including minors' details, contact data, and residential addresses. **Do not publish the Excel, converted JSON, contact data, or exact residence markers to an unrestricted public website, map, or GitHub repo.** Use it only with permission and in accordance with your organization's data-handling policies. Do not assume that people living at the same address are a family. Verify household assignments and apartment/unit numbers.
+> **Public demonstration only.** The files in this repository contain *fictional* families and simulated markers. **Never commit Church member directory exports, private coordinates, passwords, keys or identifying records of children.** The embedded access code is a demonstration UI gate, **not authentication**.
 
-**This code is a functional proof of concept, not a certified Church production system.** For organizational distribution, obtain approval for hosting, identity access, data residency/storage, mapping provider, and geocoding. Prefer Church-approved systems/SSO; audit logging, retention and access-control design need to be supplied by the organization.
+## Features
 
-## Run locally
-1. Install Python 3.11+.
-2. Unzip this project. Open a terminal in its folder.
-3. Install dependencies: `python -m pip install -r requirements.txt`.
-4. Try the **fictional demo**: `streamlit run app.py`.
-5. For private local data, copy `.streamlit/secrets.example.toml` to `.streamlit/secrets.toml`, uncomment `PILOT_PASSWORD`, and replace with a long private password. Do not put secrets in GitHub.
-6. Restart `streamlit run app.py`, sign in, and upload your **Member List 23 Oct 2026.xlsx** in the sidebar.
-7. Download the **household coordinates template**. Fill in verified latitudes and longitudes for each address, then save as **CSV UTF-8**.
-8. Upload the completed coordinates CSV. Now search a family/address; select a household to center its marker, or click any pin to open the record details.
-9. Coordinates must be for the specific apartment/unit where possible; check for bad zip codes, swapped apartment numbers and incorrect pin placements.
+- Search by surname, member name, address, apartment / unit.
+- Select a family from the directory to highlight and locate its household on the map.
+- Select a house marker to view people and available details at that address.
+- Filter mapped / not-yet-mapped households.
+- Load an Excel (`.xlsx` or `.xls`) member list **locally in the browser**.
+- Load a `household_id,address,latitude,longitude,review_status` CSV or XLSX of coordinates.
+- If a selected address has no coordinates, click **Locate home** to open Google Maps address search (not automatically assumed to be correct).
+- Enter verified latitude / longitude or select **Place by map click**, then download a revised coordinates CSV.
+- Open Google Maps driving directions for real locally loaded addresses.
+- No automatic uploads, cookies, database, or persistence after refresh.
 
-### If you need automatic coordinates
-`geocode_with_google.py` is an OPTIONAL local one-time preparation script. It sends ADDRESS STRINGS to Google (no names, phones, or emails) and may incur API costs. Only use if your Church data steward authorizes that provider and you have a Google Maps Geocoding API key. Verify all results before using them. It reads the coordinates CSV and creates a separate CSV with lookup results:
+## Project layout
 
-```
-# macOS/Linux (Windows: set environment variable differently)
-export GOOGLE_MAPS_API_KEY=YOUR_SECRET_KEY
-python geocode_with_google.py --input household_coordinates.csv --output verified_later.csv --confirm-third-party
+```text
+Ward/
+├── index.html        # GitHub Pages home page and HTML elements
+├── styles.css        # Responsive design
+├── app.js            # Family search, Excel parsing, map + coordinates
+├── README.md         # These instructions
+├── SECURITY.md       # Pilot-only security boundaries
+├── .gitignore        # Excludes confidential files
+└── .nojekyll         # GitHub Pages serves static HTML directly
 ```
 
-Coordinates can instead be entered manually or prepared in a Church-approved geocoding environment; no external lookup is necessary to run the app.
+## Local run in Visual Studio Code
 
-## Publishing
-A URL is possible with **approved private hosting**. Never commit actual Excel or completed coordinates CSV to a public repository. Files may be supplied through protected server mounts configured by `DATA_XLSX_PATH` and `COORDINATES_CSV_PATH` only after hosting has been approved. The app refuses real-data uploads unless a pilot password or `st.login()` OIDC authorization is configured. **A shared password is for local proof-of-concept only, not sufficient for production protection.** For a deployed app use approved Microsoft/organizational SSO through Streamlit OIDC (`st.login`) *plus* a strict allowlist (`allowed_emails`) or stronger central role enforcement; place data in approved protected storage; apply auditing/retention rules. Public demonstration may show fictional example people only.
+1. Extract the ZIP. Open the extracted **folder containing `index.html`** in VS Code.
+2. Open **Terminal → New Terminal**.
+3. Run one of these commands:
+   ```powershell
+   py -m http.server 5500
+   ```
+   or if `py` is unavailable, use the VS Code **Live Server** extension.
+4. Open **http://localhost:5500/**.
+5. Enter the **demo access code previously selected for this pilot**.
+6. Search and select fictional families to see the map and details. Internet is required for Leaflet, SheetJS, and map tiles.
 
-Streamlit hosting docs:
-- https://docs.streamlit.io/develop/concepts/connections/authentication
-- https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app/app-settings
-- https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management
+## Publishing with your GitHub account
 
-## Important limitations
-- Member workbook has addresses but not verified latitude/longitude, so REAL map pins appear only once coordinates are supplied.
-- Selecting a location groups people living at the **same normalized street address including apartment/unit**, not formally linked church households.
-- Some source records have blank, inconsistent, or malformed fields; review the imported directory before operational use.
-- Pilot uploads stay in memory of each session. They are **not automatically shared with other viewers**. For authorized viewers to see the same directory on an approved private server, let IT mount the sensitive workbook and completed coordinates CSV **outside the Git repository** and set `DATA_XLSX_PATH` / `COORDINATES_CSV_PATH` through protected deployment secrets. The app will then load shared data **after authorization**. An organization-approved storage system with logging and retention is still required for production.
-- Browser loads third-party OSM tile graphics. Approve the mapping provider for real private uses.
+Repository: `arebaza/Ward` (verify spelling and capitalization yourself).
 
+1. In VS Code, open the project root, not an enclosing parent folder.
+2. Before any commit, run `git status` and `git diff --cached --name-only` to inspect files. Only the project files above should be included.
+3. To connect and publish a brand-new local checkout, if your GitHub repository is **empty**:
+   ```powershell
+   git init
+   git branch -M main
+   git add index.html styles.css app.js README.md SECURITY.md .gitignore .nojekyll
+   git diff --cached --name-only
+   git commit -m "Add static HTML interactive map pilot"
+   git remote add origin https://github.com/arebaza/Ward.git
+   git push -u origin main
+   ```
+4. If your repository already contains earlier Python files, **clone it instead of reinitializing**, copy these new files into the root, run `git add` only for the new code files, commit, and push. Do not overwrite your remote history.
+5. In GitHub open **Settings → Pages → Build and deployment → Source: Deploy from a branch → Branch: main → Folder: /(root) → Save**.
+6. Visit the exact URL shown in **Settings → Pages → Visit site**. For a repository named `Ward`, the canonical project path will commonly be `https://arebaza.github.io/Ward/` (path capitalization matters). If you see 404, check that `index.html` is at the root of the published branch, that the build completed, and that Pages is enabled and available on your plan.
 
-## Local pilot password setup (personal copy)
-This locally configured ZIP contains `.streamlit/secrets.toml` with the pilot password you provided. It is excluded by `.gitignore`. Never upload this ZIP, `secrets.toml`, or member data to GitHub. Use individual identity-based authentication on any published version.
+### GitHub Pages privacy limitations
+
+- GitHub Pages sites are **publicly accessible**, **even when a paid plan supports Pages from a private repository**. Repository visibility does not make the published website private.
+- The `DEMO_ACCESS_CODE` constant in `app.js` can be read or bypassed by website visitors. It does not restrict access.
+- Local Excel import uses browser `File` APIs; it does **not send the selected file to our own server**. The selected data is displayed only in the current browser session. However, third-party JavaScript libraries run in the same browser page, and map tile hosts receive tile requests corresponding to viewed areas.
+- Do not publish real member data as a static `data.json`, `.csv`, `.xlsx`, `api.js`, or other asset or embed it in HTML/JS.
+- Local browsing with real records should be undertaken **only if your organization approves the specific third-party libraries, service providers and mapping workflow**. For private shared data, use organization-approved hosting, real individual authentication, role permissions and a private database.
+
+## Use local Excel and coordinate files
+
+1. Sign into the *demo gate*. Click **Load Excel**. Pick `Member List 23 Oct 2026.xlsx` **from your computer**, not from the GitHub repository.
+2. Your file should have a sheet named `Members` (preferably) and a table with headers `Name`, `Gender`, `Age`, `Birth Date`, `Address`, `Phone Number`, `Email`.
+3. Click **Load coordinates** and choose your CSV with `household_id,address,latitude,longitude,review_status` columns. Missing latitude and longitude are accepted but not drawn.
+4. **Group by address, not necessarily biological family.** Multiple surnames at one address can be roommates, households, or data issues. Confirm each address and apartment before visits.
+5. Click an address in the sidebar; view the people listed at that address. Select it on the map (if it has coordinates).
+6. For an unlocated address, use **Locate home** (Google Maps search), verify it, and enter coordinates in **Map location → edit coordinates**, or check **Place by map click** and click a point on the map.
+7. Click **Download coordinates CSV**. Keep that file locally; never push it to GitHub. Upload it next session to restore locations.
+8. Refresh clears all member data loaded in the browser. Each authorized user would need to load their own local file — this static app is not a shared database.
+
+### Important accuracy limits
+
+The Excel has names, addresses and contact information, **not latitude or longitude**. The original coordinates template has blank coordinates for many/all addresses, so most real homes will not have markers immediately. The app never invents them. **Do not assume matching street address means one family**: for large apartment buildings the unit is significant. Member records may be outdated. Verify before visits.
+
+## Third-party assets
+
+- Leaflet v1.9.4 for mapping — https://leafletjs.com/
+- OpenStreetMap tile service — https://www.openstreetmap.org/
+- SheetJS Community Edition v0.20.3 — https://docs.sheetjs.com/
+
+All external resources are downloaded by the visitor's browser. Review their terms and your organization's requirements before use with non-demonstration information.

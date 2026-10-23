@@ -1,15 +1,22 @@
-# Prevent credentials and Church member data from being committed
-.streamlit/secrets.toml
+# Never commit personal records, especially member and minor information
 private/
+data/
 *.xlsx
 *.xls
-*.pdf
 *.csv
+*.pdf
+*.zip
+*.json
+# Secrets, local configs, Python (prior pilot) and editor temporary files
 .env
 .env.*
-# Python development files
+.streamlit/secrets.toml
+config.local.js
+secrets.*
 .venv/
 venv/
 __pycache__/
 *.pyc
-.pytest_cache/
+.DS_Store
+Thumbs.db
+.vscode/
