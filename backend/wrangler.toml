@@ -1,0 +1,10 @@
+name = "park5-map-api"
+main = "src/index.mjs"
+compatibility_date = "2026-10-01"
+
+# Replace REPLACE_WITH_DATABASE_ID with the UUID from:
+# npx wrangler d1 create park5-ward-db
+[[d1_databases]]
+binding = "DB"
+database_name = "park5-ward-db"
+database_id = "REPLACE_WITH_DATABASE_ID"

@@ -1,17 +1,46 @@
 "use strict";
 
 /**
- * Park 5th Ward — HTML-only map pilot.
- *
- * SECURITY BOUNDARIES:
- *  - GitHub Pages is PUBLIC. The access code below is a DEMO gate, not authentication.
- *  - Only fictional records are bundled. NEVER place real member records in this repo.
- *  - Excel files chosen through <input type="file"> stay in this browser's memory.
- *  - Third-party Leaflet / SheetJS scripts and OpenStreetMap tiles still run on the page.
- *  - A real shared directory requires an approved private backend and real sign-in.
+ * Park 5th Ward — Shared password pilot (GitHub Pages frontend + Cloudflare Worker backend).
+ * NO PRIVATE RECORDS OR PASSWORDS belong in this public JS file or GitHub repository.
+ * The backend validates the shared password and persists the latest directory and coordinates.
  */
-
-const DEMO_ACCESS_CODE = "300S84058"; // DEMO ONLY: visible to anyone inspecting source
+const API_URL = String(window.PARK5_API_URL || "").replace(/\/$/, "");
+let sessionToken = ""; // Memory only. New tab/reload requires password again.
+async function apiRequest(path, method = "GET", body) {
+  if (!/^https:\/\/[-a-zA-Z0-9.]+\.workers\.dev$/.test(API_URL)) {
+    throw Error("Configure config.js with your Cloudflare Worker workers.dev URL before signing in.");
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(API_URL + path, {
+      method,
+      mode: "cors",
+      cache: "no-store",
+      headers: {
+        "content-type": "application/json",
+        ...(sessionToken ? { Authorization: "Bearer " + sessionToken } : {})
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: controller.signal
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401 && path !== "/api/login") {
+        sessionToken = "";
+        $("loginScreen").classList.remove("hidden");
+        $("dashboard").classList.add("hidden");
+        $("loginError").textContent = "Session expired. Please enter the password again.";
+      }
+      throw Error(data.error || `Server error ${response.status}`);
+    }
+    return data;
+  } catch (err) {
+    if (err?.name === "AbortError") throw Error("Connection timed out. Check Cloudflare Worker settings.");
+    throw err;
+  } finally { clearTimeout(timer); }
+}
 const OREM_CENTER = [40.297, -111.694];
 
 const DEMO_MEMBERS = [
@@ -124,11 +153,11 @@ async function useMembers(members,{demo=false,info=""}={}) {
   $("search").value="";
   $("mapFilter").value="all";
   $("placeOnMap").checked=false;
-  $("sourceBadge").textContent=demo?"Demo families":"Local Excel session";
+  $("sourceBadge").textContent=demo?"Demo families (local)":"Shared directory";
   $("sourceBadge").style.background=demo?"#e4f7ef":"#fff1d9";
   $("sourceBadge").style.color=demo?"#167c62":"#9b6219";
   updateDisplay();
-  setStatus(info||(demo?"Fictional demonstration loaded. Four map locations are simulated, not real residences.":`Loaded ${members.length} members into browser memory. No personal records have been uploaded to GitHub.`),"success");
+  setStatus(info||(demo?"Fictional demonstration loaded. Four map locations are simulated, not real residences.":`Loaded ${members.length} shared member records from the protected database.`),"success");
 }
 function updateDisplay() {
   const mapped=state.households.filter(h=>validCoordinates(h.lat,h.lng)).length;
@@ -244,20 +273,30 @@ function initMap(){
     maxZoom:19
   }).addTo(state.map);
   state.markerLayer=L.layerGroup().addTo(state.map);
-  state.map.on("click",e=>{
+  state.map.on("click",async e=>{
     if(!$("placeOnMap").checked||!state.selectedId)return;
-    saveLocation(e.latlng.lat,e.latlng.lng,"Placed by map click — verify");
     $("placeOnMap").checked=false;
-    setStatus("Location placed in this browser. Verify it and download the updated coordinates CSV.","success");
+    try {
+      await saveLocation(e.latlng.lat,e.latlng.lng,"Placed by map click — verify");
+      setStatus("Location saved to shared database. Other users will see it when they refresh.","success");
+    } catch(error) { setStatus("Location NOT saved: " + error.message,"error"); }
   });
   state.map.whenReady(()=>setTimeout(()=>state.map.invalidateSize(),100));
 }
-function saveLocation(lat,lng,reviewStatus="Manual — verify"){
+async function saveLocation(lat,lng,reviewStatus="Manual — verify"){
   const house=state.households.find(h=>h.id===state.selectedId);
   if(!house)throw Error("Select a household before entering coordinates.");
+  if(state.demo)throw Error("Switch to a shared directory before saving real locations.");
   if(!validCoordinates(lat,lng))throw Error("Enter valid latitude (-90 to 90) and longitude (-180 to 180).");
+  // Save remotely FIRST. If it fails, local UI must not claim that it was saved.
+  await apiRequest("/api/coordinates", "PUT", {coordinates:[{
+    address_key:house.address,latitude:lat,longitude:lng,review_status:reviewStatus
+  }]});
   house.lat=lat;house.lng=lng;house.review_status=reviewStatus;
-  state.changedCoordinates.set(house.id,{household_id:house.id,address:house.address,latitude:lat,longitude:lng,review_status:reviewStatus});
+  const row={household_id:house.id,address:house.address,latitude:lat,longitude:lng,review_status:reviewStatus};
+  state.changedCoordinates.set(house.id,row);
+  state.coordinateRows=state.coordinateRows.filter(r=>normalizedAddress(r.address)!==house.address);
+  state.coordinateRows.push(row);
   updateDisplay();
   if(state.map)state.map.flyTo([lat,lng],17,{duration:.65});
 }
@@ -321,7 +360,10 @@ async function loadMemberFile(file){
     const rows=await extractRows(file,"Members");
     const people=memberRecords(rows);
     if(!people.length)throw Error("No members found. Ensure Name and Address columns are populated.");
-    await useMembers(people,{demo:false,info:`Loaded ${people.length} member records from ${file.name}. The file remains on your device; this website did not upload it.`});
+    setStatus(`Uploading ${people.length} records to shared database…`);
+    const saved=await apiRequest("/api/directory","PUT",{members:people,filename:file.name});
+    await refreshShared();
+    setStatus(`Saved ${saved.count} members from ${saved.filename} to the shared database. The newest Excel replaces the previous member list; saved coordinates remain.`,"success");
   }catch(err){setStatus(err.message||"Unable to read spreadsheet.","error");}
 }
 async function loadCoordsFile(file){
@@ -331,10 +373,17 @@ async function loadCoordsFile(file){
     if(!coords.length||!("latitude" in coords[0])||!("longitude" in coords[0])||!("household_id" in coords[0]||"address" in coords[0])){
       throw Error("Coordinates file needs household_id or address, latitude, longitude columns.");
     }
+    if(state.demo)throw Error("Load the shared member directory first, then import coordinates.");
     state.coordinateRows=coords;
     attachCoordinates();updateDisplay();
-    const mapped=state.households.filter(h=>validCoordinates(h.lat,h.lng)).length;
-    setStatus(`Coordinates loaded. ${mapped} of ${state.households.length} households have a map location. Verify these before using directions.`,"success");
+    const mapped=state.households.filter(h=>validCoordinates(h.lat,h.lng));
+    if(!mapped.length){setStatus("Coordinates file contained no valid matching locations. No changes were saved.","error");return;}
+    // Save only verified/matched locations. Existing locations remain if not in this CSV.
+    const result=await apiRequest("/api/coordinates","PUT",{coordinates:mapped.map(h=>({
+      address_key:h.address, latitude:h.lat, longitude:h.lng, review_status:h.review_status||"CSV import — verify"
+    }))});
+    await refreshShared();
+    setStatus(`${result.count} mapped households saved to the shared database. Users see them after refresh.`,"success");
   }catch(err){setStatus(err.message||"Unable to read coordinates.","error");}
 }
 function csvEscape(value){const str=text(value);return /[",\n\r]/.test(str)?'"'+str.replace(/"/g,'""')+'"':str;}
@@ -348,7 +397,7 @@ function downloadCoordinates(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");a.href=url;a.download=state.demo?"DEMO_household_coordinates.csv":"Park5_Household_Map_Coordinates_updated.csv";
   document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  setStatus("Coordinates CSV downloaded to your device. Do not add the real-address CSV to GitHub.","success");
+  setStatus("Backup CSV downloaded. Coordinates are also saved to the shared database after each successful change.","success");
 }
 function focusSelected(){
   const h=state.households.find(x=>x.id===state.selectedId);
@@ -358,34 +407,64 @@ function focusSelected(){
   window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(h.address),"_blank","noopener,noreferrer");
   setStatus("Opened an address search in Google Maps. Verify it is the correct household before saving coordinates.");
 }
+function updatedLabel(snapshot){
+  const name=text(snapshot.filename);
+  if(!name)return "Shared database: no Excel uploaded yet";
+  return `Latest shared Excel: ${name} · saved ${snapshot.updated_at || "recently"} UTC`;
+}
+async function refreshShared(){
+  const snapshot=await apiRequest("/api/state");
+  state.coordinateRows=(snapshot.coordinates||[]).map(c=>({
+    address:c.address_key,latitude:c.latitude,longitude:c.longitude,
+    review_status:c.review_status
+  }));
+  $("syncDetails").textContent=updatedLabel(snapshot);
+  if(Array.isArray(snapshot.members)&&snapshot.members.length){
+    await useMembers(snapshot.members,{demo:false,info:`Shared directory loaded: ${snapshot.members.length} members. ${updatedLabel(snapshot)}`});
+  }else{
+    await useMembers(DEMO_MEMBERS,{demo:true,info:"No shared Excel saved yet. Showing fictional examples. Use Load Excel to publish the first shared directory."});
+    // Keep coordinates from shared server for first real Excel import.
+    state.coordinateRows=(snapshot.coordinates||[]).map(c=>({address:c.address_key,latitude:c.latitude,longitude:c.longitude,review_status:c.review_status}));
+  }
+}
 function boot(){
   $("loginForm").addEventListener("submit",async event=>{
     event.preventDefault();
-    if($("passcode").value!==DEMO_ACCESS_CODE){$("loginError").textContent="Incorrect demo code. Try again.";return;}
-    $("loginError").textContent="";
-    $("loginScreen").classList.add("hidden");
-    $("dashboard").classList.remove("hidden");
-    initMap();
-    await useMembers(DEMO_MEMBERS,{demo:true});
-    setTimeout(()=>state.map?.invalidateSize(),250);
+    $("loginError").textContent="Checking password…";
+    try {
+      const result=await apiRequest("/api/login","POST",{password:$("passcode").value});
+      sessionToken=result.token;
+      $("passcode").value="";
+      $("loginError").textContent="";
+      $("loginScreen").classList.add("hidden");
+      $("dashboard").classList.remove("hidden");
+      if(!state.map)initMap();
+      await refreshShared();
+      setTimeout(()=>state.map?.invalidateSize(),250);
+    } catch(error){ $("loginError").textContent=error.message||"Unable to sign in."; }
   });
   $("search").addEventListener("input",drawList);
   $("mapFilter").addEventListener("change",drawList);
   $("clearSelection").addEventListener("click",()=>{state.selectedId=null;$("placeOnMap").checked=false;updateDisplay();});
-  $("resetDemo").addEventListener("click",()=>{useMembers(DEMO_MEMBERS,{demo:true});$("memberFile").value="";$("coordsFile").value="";});
+  $("resetDemo").addEventListener("click",()=>{useMembers(DEMO_MEMBERS,{demo:true});$("memberFile").value="";$("coordsFile").value="";setStatus("Fictional example shown locally. Shared database is unchanged. Click Refresh shared data to return.","success");});
+  $("refreshShared").addEventListener("click",async()=>{
+    try {setStatus("Refreshing shared directory…");await refreshShared();}
+    catch(error){setStatus("Refresh failed: "+error.message,"error");}
+  });
   $("memberFile").addEventListener("change",async e=>{if(e.target.files[0])await loadMemberFile(e.target.files[0]);e.target.value="";});
   $("coordsFile").addEventListener("change",async e=>{if(e.target.files[0])await loadCoordsFile(e.target.files[0]);e.target.value="";});
   $("downloadCoords").addEventListener("click",downloadCoordinates);
   $("focusHome").addEventListener("click",focusSelected);
   $("directions").addEventListener("click",e=>{if(state.demo)e.preventDefault();});
-  $("coordinateForm").addEventListener("submit",e=>{
+  $("coordinateForm").addEventListener("submit",async e=>{
     e.preventDefault();
     try{
       const rawLat=text($("latitude").value),rawLng=text($("longitude").value);
       if(!rawLat||!rawLng)throw Error("Enter both latitude and longitude.");
-      saveLocation(Number(rawLat),Number(rawLng));
-      setStatus("Coordinates saved in browser memory. Download CSV to keep your changes.","success");
-    }catch(error){setStatus(error.message,"error");}
+      setStatus("Saving coordinates to shared database…");
+      await saveLocation(Number(rawLat),Number(rawLng));
+      setStatus("Coordinates saved to shared database. Other users will see them on refresh.","success");
+    }catch(error){setStatus("Not saved: "+error.message,"error");}
   });
 }
 boot();

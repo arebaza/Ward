@@ -1,11 +1,16 @@
-# Security policy for this pilot
+# Security boundaries — shared password pilot
 
-**This is a demonstration static website and is not an access-controlled ward directory.**
+## Public repository
+The GitHub Pages repository must contain **code only**. Do not commit actual member spreadsheets, CSVs with addresses, database exports, raw passwords, API bearer tokens, or screenshots of private household data.
 
-1. GitHub Pages output is public, including for private repositories on plans that offer Pages from private repos.
-2. An HTML/JS passcode is only an interface demonstration: its value and comparison logic are inspectable and circumventable. Do not rely on it for private records.
-3. The project **must not contain** actual names, email addresses, phone numbers, family lists, member records, birth dates, or precise homes.
-4. If a user selects Excel or CSV files, the page reads them in the local browser session and does not deliberately send them to our server. The browser loads third-party scripts and makes map-tile requests; their providers are separate data processors. Real data should only be used under organizational approval for those providers and services.
-5. Do not put confidential files in Git or an external static host, even when the GitHub repository is private. Check your commit history if a file was previously committed; `.gitignore` does not purge history.
-6. For actual multiuser ward deployment, use organization-approved identity and access management (individual accounts, role-based access, auditing), a private backend/database, and a formal policy for sharing personal data including data relating to minors.
-7. Loaded browser data is erased on refresh; coordinate CSV downloads must be stored securely by the user.
+## Backend secret
+The initial password is stored using `npx wrangler secret put PILOT_PASSWORD`, and session HMAC key using `npx wrangler secret put SESSION_SECRET`. They do not appear in `app.js`, `config.js`, or `wrangler.toml`.
+
+## Data storage
+Uploading an Excel parses records in browser and sends **member records** via HTTPS to Cloudflare Worker. Cloudflare D1 persistently stores those records and verified map points. It does not store the original .xlsx bytes. Any holder of the pilot password has read/write permissions.
+
+## Access control limitations
+A shared password and 8-hour bearer session are **not suitable for broad distribution of sensitive directory information**. The pilot has no member-specific access rules or individual audit trail. GitHub Pages is public and cannot securely host these private records itself. Confirm permission for this external hosting provider and any relevant data-handling requirements, especially children's information, before importing the real Excel.
+
+## External requests
+The web page loads third-party Leaflet and SheetJS libraries, OpenStreetMap tiles, and opens Google Maps for navigation if requested. Confirm their use is permitted for the pilot before uploading any private data.

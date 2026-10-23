@@ -12,6 +12,8 @@ data/
 .env.*
 .streamlit/secrets.toml
 config.local.js
+backend/.dev.vars
+backend/.wrangler/
 secrets.*
 .venv/
 venv/

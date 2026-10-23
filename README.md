@@ -1,95 +1,172 @@
-# Park 5th Ward — Interactive Family Map (GitHub Pages HTML Pilot)
+# Park 5th Ward — Shared Map Pilot (GitHub Pages + Cloudflare Worker + D1)
 
-A ready-to-use **HTML + CSS + JavaScript** website that runs on GitHub Pages. No Python, Streamlit, server or database is needed to demonstrate the interface.
+## Objetivo
 
-> **Public demonstration only.** The files in this repository contain *fictional* families and simulated markers. **Never commit Church member directory exports, private coordinates, passwords, keys or identifying records of children.** The embedded access code is a demonstration UI gate, **not authentication**.
+Continuar con el mismo mapa HTML/JavaScript que ya está en `https://arebaza.github.io/Ward/`, pero guardar la última lista Excel **procesada** y las coordenadas en un almacén común.
 
-## Features
+- `Load Excel` ➜ analiza `Members` en el navegador, reemplaza el directorio en **Cloudflare D1** e identifica nombre y fecha de actualización.
+- `Load coordinates` ➜ guarda las coordenadas válidas que coinciden con domicilios.
+- `Place by map click` y `Save coordinates for everyone` ➜ guardan inmediatamente la ubicación en D1.
+- Cualquier persona que ingrese con la contraseña compartida descarga la última lista y ubicaciones cuando entra o elige `Refresh shared data`.
+- Al subir otro Excel, las coordenadas anteriores **se mantienen por domicilio normalizado**.
+- **Los archivos Excel originales NO se suben** como binarios: se almacenan los registros procesados (nombres, direcciones, teléfonos, etc.) en el backend. El nombre del último archivo queda registrado.
 
-- Search by surname, member name, address, apartment / unit.
-- Select a family from the directory to highlight and locate its household on the map.
-- Select a house marker to view people and available details at that address.
-- Filter mapped / not-yet-mapped households.
-- Load an Excel (`.xlsx` or `.xls`) member list **locally in the browser**.
-- Load a `household_id,address,latitude,longitude,review_status` CSV or XLSX of coordinates.
-- If a selected address has no coordinates, click **Locate home** to open Google Maps address search (not automatically assumed to be correct).
-- Enter verified latitude / longitude or select **Place by map click**, then download a revised coordinates CSV.
-- Open Google Maps driving directions for real locally loaded addresses.
-- No automatic uploads, cookies, database, or persistence after refresh.
+## Arquitectura
 
-## Project layout
-
-```text
-Ward/
-├── index.html        # GitHub Pages home page and HTML elements
-├── styles.css        # Responsive design
-├── app.js            # Family search, Excel parsing, map + coordinates
-├── README.md         # These instructions
-├── SECURITY.md       # Pilot-only security boundaries
-├── .gitignore        # Excludes confidential files
-└── .nojekyll         # GitHub Pages serves static HTML directly
+```
+Visual Studio Code  ──git push──>  GitHub (arebaza/Ward, sitio público)
+                                           │
+                                           ▼
+                     https://arebaza.github.io/Ward/
+                            HTML + CSS + app.js
+                                   │ HTTPS
+                                   ▼
+                    Cloudflare Worker (API privada)
+                         Clave protegida en Secret
+                                   │
+                                   ▼
+                      Cloudflare D1 (datos reales)
+                        Última lista + coordenadas
 ```
 
-## Local run in Visual Studio Code
+GitHub Pages sirve archivos estáticos: por sí solo no puede guardar datos compartidos ni protegerlos con una contraseña definida en JavaScript.
 
-1. Extract the ZIP. Open the extracted **folder containing `index.html`** in VS Code.
-2. Open **Terminal → New Terminal**.
-3. Run one of these commands:
-   ```powershell
-   py -m http.server 5500
-   ```
-   or if `py` is unavailable, use the VS Code **Live Server** extension.
-4. Open **http://localhost:5500/**.
-5. Enter the **demo access code previously selected for this pilot**.
-6. Search and select fictional families to see the map and details. Internet is required for Leaflet, SheetJS, and map tiles.
+## Instalación — 1. Subir código a GitHub
 
-## Publishing with your GitHub account
+1. Extrae este ZIP.
+2. Abre la carpeta en Visual Studio Code.
+3. Copia **los archivos y la carpeta `backend`** a la raíz de tu repositorio local `Ward` (sobrescribe el código viejo).
+4. Comprueba que `.gitignore` excluya Excel/CSV/secretos. **NO** subas el Excel real ni los JSON exportados del directorio.
+5. **No subas todavía** si agregaste miembros reales a archivos fuente. Este ZIP contiene solamente miembros ficticios.
 
-Repository: `arebaza/Ward` (verify spelling and capitalization yourself).
+## Instalación — 2. Crear backend Cloudflare
 
-1. In VS Code, open the project root, not an enclosing parent folder.
-2. Before any commit, run `git status` and `git diff --cached --name-only` to inspect files. Only the project files above should be included.
-3. To connect and publish a brand-new local checkout, if your GitHub repository is **empty**:
-   ```powershell
-   git init
-   git branch -M main
-   git add index.html styles.css app.js README.md SECURITY.md .gitignore .nojekyll
-   git diff --cached --name-only
-   git commit -m "Add static HTML interactive map pilot"
-   git remote add origin https://github.com/arebaza/Ward.git
-   git push -u origin main
-   ```
-4. If your repository already contains earlier Python files, **clone it instead of reinitializing**, copy these new files into the root, run `git add` only for the new code files, commit, and push. Do not overwrite your remote history.
-5. In GitHub open **Settings → Pages → Build and deployment → Source: Deploy from a branch → Branch: main → Folder: /(root) → Save**.
-6. Visit the exact URL shown in **Settings → Pages → Visit site**. For a repository named `Ward`, the canonical project path will commonly be `https://arebaza.github.io/Ward/` (path capitalization matters). If you see 404, check that `index.html` is at the root of the published branch, that the build completed, and that Pages is enabled and available on your plan.
+Necesitas una cuenta Cloudflare, Node.js y acceso a la terminal (PowerShell) de VS Code.
 
-### GitHub Pages privacy limitations
+1. Abre `Terminal → New Terminal` en VS Code.
+2. Entra en la carpeta backend:
 
-- GitHub Pages sites are **publicly accessible**, **even when a paid plan supports Pages from a private repository**. Repository visibility does not make the published website private.
-- The `DEMO_ACCESS_CODE` constant in `app.js` can be read or bypassed by website visitors. It does not restrict access.
-- Local Excel import uses browser `File` APIs; it does **not send the selected file to our own server**. The selected data is displayed only in the current browser session. However, third-party JavaScript libraries run in the same browser page, and map tile hosts receive tile requests corresponding to viewed areas.
-- Do not publish real member data as a static `data.json`, `.csv`, `.xlsx`, `api.js`, or other asset or embed it in HTML/JS.
-- Local browsing with real records should be undertaken **only if your organization approves the specific third-party libraries, service providers and mapping workflow**. For private shared data, use organization-approved hosting, real individual authentication, role permissions and a private database.
+```powershell
+cd backend
+```
 
-## Use local Excel and coordinate files
+3. Inicia sesión (se abrirá navegador):
 
-1. Sign into the *demo gate*. Click **Load Excel**. Pick `Member List 23 Oct 2026.xlsx` **from your computer**, not from the GitHub repository.
-2. Your file should have a sheet named `Members` (preferably) and a table with headers `Name`, `Gender`, `Age`, `Birth Date`, `Address`, `Phone Number`, `Email`.
-3. Click **Load coordinates** and choose your CSV with `household_id,address,latitude,longitude,review_status` columns. Missing latitude and longitude are accepted but not drawn.
-4. **Group by address, not necessarily biological family.** Multiple surnames at one address can be roommates, households, or data issues. Confirm each address and apartment before visits.
-5. Click an address in the sidebar; view the people listed at that address. Select it on the map (if it has coordinates).
-6. For an unlocated address, use **Locate home** (Google Maps search), verify it, and enter coordinates in **Map location → edit coordinates**, or check **Place by map click** and click a point on the map.
-7. Click **Download coordinates CSV**. Keep that file locally; never push it to GitHub. Upload it next session to restore locations.
-8. Refresh clears all member data loaded in the browser. Each authorized user would need to load their own local file — this static app is not a shared database.
+```powershell
+npx wrangler login
+```
 
-### Important accuracy limits
+4. Crea una base de datos (solo una vez):
 
-The Excel has names, addresses and contact information, **not latitude or longitude**. The original coordinates template has blank coordinates for many/all addresses, so most real homes will not have markers immediately. The app never invents them. **Do not assume matching street address means one family**: for large apartment buildings the unit is significant. Member records may be outdated. Verify before visits.
+```powershell
+npx wrangler d1 create park5-ward-db
+```
 
-## Third-party assets
+5. Copia el `database_id` (UUID) mostrado y reemplaza `REPLACE_WITH_DATABASE_ID` en `backend/wrangler.toml`. No cambies `binding = "DB"`.
+6. Crea tablas **en la base de datos remota**:
 
-- Leaflet v1.9.4 for mapping — https://leafletjs.com/
-- OpenStreetMap tile service — https://www.openstreetmap.org/
-- SheetJS Community Edition v0.20.3 — https://docs.sheetjs.com/
+```powershell
+npx wrangler d1 execute park5-ward-db --remote --file=./schema.sql
+```
 
-All external resources are downloaded by the visitor's browser. Review their terms and your organization's requirements before use with non-demonstration information.
+7. Publica el Worker:
+
+```powershell
+npx wrangler deploy
+```
+
+8. Configura la contraseña del piloto como un **secreto del servidor**, no en `app.js`:
+
+```powershell
+npx wrangler secret put PILOT_PASSWORD
+```
+
+Cuando Wrangler pregunte el valor, escríbelo en la terminal (no lo agregues a GitHub).
+
+9. Crea una clave aleatoria para firmar sesiones. En otra línea de PowerShell ejecuta:
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Copia la salida (64 caracteres hexadecimales). Ejecuta:
+
+```powershell
+npx wrangler secret put SESSION_SECRET
+```
+
+Pega esos 64 caracteres cuando lo solicite. No guardes la clave en el repositorio.
+
+10. Si Wrangler no proporcionó una URL en el primer deploy, vuelve a ejecutar:
+
+```powershell
+npx wrangler deploy
+```
+
+La URL tendrá la forma:
+
+```
+https://park5-map-api.<TU-SUBDOMINIO>.workers.dev
+```
+
+Para probar que la API responde (sin datos):
+
+```
+https://park5-map-api.<TU-SUBDOMINIO>.workers.dev/api/health
+```
+
+Debe aparecer `{"status":"ok"}`.
+
+## Instalación — 3. Conectar GitHub Pages
+
+1. En la **raíz** del proyecto (no en `backend`), abre `config.js`.
+2. Reemplaza el marcador de URL con el enlace real de Cloudflare Worker:
+
+```js
+window.PARK5_API_URL = "https://park5-map-api.TU-SUBDOMINIO.workers.dev";
+```
+
+**La URL pública de la API no es una contraseña.** Se puede subir al repositorio.
+
+3. En VS Code, desde la raíz `Ward`:
+
+```powershell
+git add index.html styles.css app.js config.js backend/src/index.mjs backend/schema.sql backend/wrangler.toml README.md SECURITY.md .gitignore .nojekyll
+git status
+git commit -m "Add password-protected shared directory and saved coordinates"
+git push origin main
+```
+
+4. Ve a GitHub → `Ward` → Settings → Pages → Deploy from a branch → `main / (root)`.
+5. Espera la ejecución exitosa en GitHub `Actions` y abre `https://arebaza.github.io/Ward/`.
+
+## Flujo de uso
+
+1. Introduce la **contraseña que guardaste en Cloudflare**. La contraseña se comprueba en el servidor.
+2. Si nadie ha cargado todavía el directorio, verás las 4 familias ficticias de ejemplo.
+3. Haz clic en **Load Excel** y selecciona tu `Park5_Web_Import_Both_Sheets_2026-10-23.xlsx` o el Excel original compatible.
+4. El navegador procesa la hoja `Members` y guarda la última versión en Cloudflare D1.
+5. Todos los usuarios de la contraseña la verán después de iniciar sesión o de pulsar **Refresh shared data**.
+6. Selecciona una casa, abre el editor de coordenadas, o marca `Place by map click` y toca en el mapa. La ubicación se guarda en el servidor, visible para otros tras refrescar.
+7. Para coordenadas masivas usa `Load coordinates` y selecciona un CSV/Excel con columnas `address` o `household_id`, `latitude`, `longitude`.
+8. El botón **Download coordinates CSV** sirve como copia de respaldo local.
+
+**Nota:** Cada edición de ubicación se guarda inmediatamente. El último Excel reemplaza la lista completa de miembros. La identidad de domicilios depende de la normalización de dirección; cambios de dirección o apartamento pueden necesitar reasignar la ubicación.
+
+## Pruebas
+
+- Dos navegadores diferentes: sesión A carga la lista; sesión B ingresa con la contraseña y comprueba recuentos.
+- A marca una dirección; B pulsa **Refresh shared data** y la ve.
+- A carga una versión nueva de Excel; B la recupera con **Refresh shared data**.
+- Falla el servidor: la web debe mostrar **Not saved**; los datos no deben parecer guardados.
+
+## Notas de seguridad, alcance del piloto
+
+- Sitio GitHub Pages y fuente JS son **públicos**. Nunca hagas commit de datos personales, contraseñas ni tokens.
+- Cloudflare D1 sí almacena información personal importada; revisar con los responsables de la información que ese procesador externo y la jurisdicción sean aceptables.
+- El password compartido da acceso completo: cualquiera que lo sepa **puede consultar, reemplazar el directorio y modificar ubicaciones**. No hay roles individuales, auditoría de usuarios ni control de ediciones concurrentes.
+- El backend limita tamaño de carga y bloquea temporalmente un IP después de cinco intentos fallidos. No es un sistema corporativo de identidad.
+- Parte de la navegación y herramientas utiliza bibliotecas de terceros (Leaflet, SheetJS, OpenStreetMap, Google Maps al pedir directions). Evita exponer los datos de menores hasta confirmar autorización de procesamiento y hosting.
+- Para mayor seguridad futura, implementar cuentas individuales, roles, auditoría y controles de consentimiento/revisión antes de usar datos reales.
+
+Documentación: https://developers.cloudflare.com/d1/get-started/ y https://developers.cloudflare.com/workers/configuration/secrets/ .

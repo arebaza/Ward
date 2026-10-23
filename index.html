@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Interactive household map and directory — fictional-data pilot">
+  <meta name="description" content="Shared pilot household map and directory; server-side password login">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Park 5th Ward | Interactive Map Pilot</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='82'%3E%F0%9F%8F%A0%3C/text%3E%3C/svg%3E">
@@ -11,33 +11,34 @@
   <link rel="stylesheet" href="./styles.css">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script defer src="./config.js"></script>
   <script defer src="./app.js"></script>
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
     <div class="login-card">
-      <div class="badge">FICTIONAL DATA · WEBSITE PILOT</div>
+      <div class="badge">SHARED DIRECTORY · PILOT</div>
       <div class="brandmark" aria-hidden="true">⌂</div>
       <h1>Park 5th Ward</h1>
       <p class="lead">Interactive Household Map</p>
-      <p class="muted">Enter the <strong>demo access code</strong> to explore the pilot interface.</p>
+      <p class="muted">Enter your <strong>pilot password</strong> to view the latest shared member directory and saved map locations.</p>
       <form id="loginForm">
-        <label for="passcode">Demo access code</label>
+        <label for="passcode">Pilot password</label>
         <input id="passcode" type="password" autocomplete="off" spellcheck="false" required placeholder="Enter your code">
         <p id="loginError" class="error" role="alert" aria-live="polite"></p>
         <button type="submit" class="btn primary full">Open map pilot <span aria-hidden="true">→</span></button>
       </form>
-      <p class="notice"><strong>Demo only:</strong> this code is visible in website source. GitHub Pages cannot securely protect a real member directory. Do not publish private member data here.</p>
+      <p class="notice"><strong>Access notice:</strong> your password is checked by the backend, not stored in GitHub Pages. This is a shared-password pilot, not individual-user access control.</p>
     </div>
   </div>
 
   <div id="dashboard" class="dashboard hidden">
     <header class="topbar">
       <div class="topbrand"><span class="topicon" aria-hidden="true">⌂</span><div><span class="eyebrow">PARK 5TH WARD</span><strong>Family Map Pilot</strong></div></div>
-      <div class="top-actions"><span id="sourceBadge" class="source-badge">Demo families</span><button id="resetDemo" class="btn subtle" type="button">Reset demo</button></div>
+      <div class="top-actions"><span id="sourceBadge" class="source-badge">Demo families</span><button id="resetDemo" class="btn subtle" type="button">Show local demo</button></div>
     </header>
 
-    <div class="privacy-banner" role="note"><span aria-hidden="true">ⓘ</span><span><strong>Public-site prototype.</strong> Published website contains fictional families only. Imported Excel stays in this browser session (not uploaded to GitHub), but third-party libraries/maps are used. Obtain approval before handling real records on any public website.</span></div>
+    <div class="privacy-banner" role="note"><span aria-hidden="true">ⓘ</span><span><strong>Shared-data pilot.</strong> The public GitHub Pages repository contains no member records. Excel imports and map edits are saved to a password-protected Cloudflare database. External map and spreadsheet libraries are still used; use only with hosting/data-processing approval.</span></div>
 
     <main class="page">
       <section class="page-heading">
@@ -53,8 +54,9 @@
       </section>
 
       <section class="data-tools" aria-label="Directory data tools">
-        <div class="tool-copy"><strong>My local pilot data</strong><p>Choose your own Excel and optional coordinates CSV. Nothing is saved to this website or GitHub; reload resets the session.</p></div>
+        <div class="tool-copy"><strong>Shared pilot data</strong><p>Upload a new Excel to replace the shared member list. Coordinates are saved as you mark them, and all password users see changes after refreshing.</p><p id="syncDetails" class="sync-details">Connecting to the protected shared database…</p></div>
         <div class="file-actions">
+          <button id="refreshShared" type="button" class="btn outline">↻ Refresh shared data</button>
           <label class="upload-btn"><span aria-hidden="true">↑</span> Load Excel <input id="memberFile" type="file" accept=".xlsx,.xls,.csv" aria-label="Load member Excel or CSV" hidden></label>
           <label class="upload-btn secondary"><span aria-hidden="true">⌖</span> Load coordinates <input id="coordsFile" type="file" accept=".csv,.xlsx" aria-label="Load coordinates CSV or Excel" hidden></label>
           <button id="downloadCoords" type="button" class="btn outline">↓ Download coordinates CSV</button>
@@ -76,7 +78,7 @@
           <div class="panel-heading map-heading"><div><h3 id="mapTitle">Neighborhood map</h3><p id="mapSubhead">Click a marker to inspect a household</p></div><span class="map-legend"><i aria-hidden="true"></i> Home with coordinates</span></div>
           <div id="map" aria-label="Interactive map of household locations"></div>
           <p id="mapUnavailable" class="map-warning hidden">Map tiles could not load. Check your Internet connection. You can still search households and open directions.</p>
-          <div class="map-tip"><span aria-hidden="true">⌖</span><span>Have no coordinates? Select a household, enable <strong>Place by map click</strong>, then click its location and download the updated CSV.</span></div>
+          <div class="map-tip"><span aria-hidden="true">⌖</span><span>Have no coordinates? Select a household, enable <strong>Place by map click</strong>, and click its location. The location is saved online automatically.</span></div>
         </section>
 
         <aside class="detail-panel" aria-labelledby="detailsTitle">
@@ -95,15 +97,15 @@
               <p>Coordinates are manually entered or placed on the map. Confirm the correct property/apartment before using.</p>
               <form id="coordinateForm">
                 <div class="coords-inputs"><label>Latitude<input id="latitude" type="number" inputmode="decimal" min="-90" max="90" step="any" placeholder="40.2968"></label><label>Longitude<input id="longitude" type="number" inputmode="decimal" min="-180" max="180" step="any" placeholder="-111.6946"></label></div>
-                <button type="submit" class="btn outline full">Save coordinates in browser</button>
+                <button type="submit" class="btn outline full">Save coordinates for everyone</button>
               </form>
               <label class="checkbox-line"><input id="placeOnMap" type="checkbox"> Place by map click (selected home)</label>
-              <p class="small-note">Changes last for this session. Use “Download coordinates CSV” to preserve them locally.</p>
+              <p class="small-note">Changes are saved to the shared database. The CSV download is an optional backup.</p>
             </details>
           </div>
         </aside>
       </div>
-      <footer><span>Park 5th Ward • HTML + CSS + JavaScript pilot</span><span>Demonstration is not an official Church system and is not a secure member directory.</span></footer>
+      <footer><span>Park 5th Ward • HTML + CSS + JavaScript pilot</span><span>Unofficial shared-password pilot. Access is not individualized or audited.</span></footer>
     </main>
   </div>
 </body>
